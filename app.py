@@ -5,6 +5,7 @@ app.py - AttentionX Streamlit app.
 import datetime
 import io
 import os
+import shutil
 import subprocess
 import tempfile
 import zipfile
@@ -12,10 +13,43 @@ import zipfile
 import streamlit as st
 from dotenv import load_dotenv
 
-# Set ffmpeg path directly so Whisper and MoviePy can find it
-FFMPEG_PATH = r"C:\Users\ACER\Desktop\KOOK1\ffmpeg-8.1-essentials_build\bin"
-os.environ["PATH"] = FFMPEG_PATH + os.pathsep + os.environ.get("PATH", "")
-os.environ["IMAGEIO_FFMPEG_EXE"] = os.path.join(FFMPEG_PATH, "ffmpeg.exe")
+def _configure_ffmpeg() -> None:
+    """
+    Configure ffmpeg for local Windows runs and cloud deployments.
+    """
+    if os.environ.get("IMAGEIO_FFMPEG_EXE") and os.path.exists(
+        os.environ["IMAGEIO_FFMPEG_EXE"]
+    ):
+        return
+
+    app_dir = os.path.dirname(os.path.abspath(__file__))
+    ffmpeg_bin_name = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
+
+    candidate_dirs = []
+    custom_dir = os.getenv("ATTENTIONX_FFMPEG_DIR")
+    if custom_dir:
+        candidate_dirs.append(custom_dir)
+
+    candidate_dirs.extend(
+        [
+            os.path.join(app_dir, "ffmpeg", "bin"),
+            os.path.join(os.path.dirname(app_dir), "ffmpeg-8.1-essentials_build", "bin"),
+        ]
+    )
+
+    for ffmpeg_dir in candidate_dirs:
+        ffmpeg_bin = os.path.join(ffmpeg_dir, ffmpeg_bin_name)
+        if os.path.exists(ffmpeg_bin):
+            os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
+            os.environ["IMAGEIO_FFMPEG_EXE"] = ffmpeg_bin
+            return
+
+    ffmpeg_from_path = shutil.which("ffmpeg")
+    if ffmpeg_from_path:
+        os.environ.setdefault("IMAGEIO_FFMPEG_EXE", ffmpeg_from_path)
+
+
+_configure_ffmpeg()
 
 load_dotenv()
 
@@ -60,7 +94,8 @@ def _get_ffprobe_bin() -> str:
     ffmpeg_bin = os.environ.get("IMAGEIO_FFMPEG_EXE", "ffmpeg")
     ffmpeg_dir = os.path.dirname(ffmpeg_bin)
     if ffmpeg_dir:
-        candidate = os.path.join(ffmpeg_dir, "ffprobe.exe")
+        probe_name = "ffprobe.exe" if os.name == "nt" else "ffprobe"
+        candidate = os.path.join(ffmpeg_dir, probe_name)
         if os.path.exists(candidate):
             return candidate
     return "ffprobe"
