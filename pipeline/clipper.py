@@ -5,7 +5,25 @@ Adds 2-second buffers around each detected moment and saves raw clips.
 
 import os
 import subprocess
-from moviepy.editor import VideoFileClip
+
+try:
+    from moviepy.editor import VideoFileClip
+except ModuleNotFoundError:
+    from moviepy import VideoFileClip
+
+
+def _subclip(clip, start_time: float, end_time: float):
+    """MoviePy v1/v2 compatible subclip helper."""
+    if hasattr(clip, "subclip"):
+        return clip.subclip(start_time, end_time)
+    return clip.subclipped(start_time, end_time)
+
+
+def _set_audio(clip, audio_clip):
+    """MoviePy v1/v2 compatible audio attach helper."""
+    if hasattr(clip, "set_audio"):
+        return clip.set_audio(audio_clip)
+    return clip.with_audio(audio_clip)
 
 
 def _get_ffprobe_bin() -> str:
@@ -148,12 +166,11 @@ def extract_clips(video_path: str, clips_data: list, output_dir: str) -> list:
                     actual_end
                 ):
                     # Cut the subclip from the source video
-                    subclip = source_video.subclip(actual_start, actual_end)
+                    subclip = _subclip(source_video, actual_start, actual_end)
                     if source_video.audio is not None:
                         # Keep audio track explicitly attached for reliability.
-                        subclip = subclip.set_audio(
-                            source_video.audio.subclip(actual_start, actual_end)
-                        )
+                        sub_audio = _subclip(source_video.audio, actual_start, actual_end)
+                        subclip = _set_audio(subclip, sub_audio)
 
                     # Fallback path: h264 re-encode for compatibility
                     subclip.write_videofile(

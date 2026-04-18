@@ -6,7 +6,11 @@ Samples frames to find average face position and keeps the speaker centered.
 import os
 import subprocess
 import numpy as np
-from moviepy.editor import VideoFileClip
+
+try:
+    from moviepy.editor import VideoFileClip
+except ModuleNotFoundError:
+    from moviepy import VideoFileClip
 
 try:
     import mediapipe as mp
@@ -85,6 +89,20 @@ def _remux_audio_from_source(video_path: str, audio_source_path: str) -> bool:
                 os.remove(temp_path)
             except Exception:
                 pass
+
+
+def _crop_clip(clip, x1: int, x2: int):
+    """MoviePy v1/v2 compatible crop helper."""
+    if hasattr(clip, "crop"):
+        return clip.crop(x1=x1, x2=x2)
+    return clip.cropped(x1=x1, x2=x2)
+
+
+def _set_audio(clip, audio_clip):
+    """MoviePy v1/v2 compatible audio attach helper."""
+    if hasattr(clip, "set_audio"):
+        return clip.set_audio(audio_clip)
+    return clip.with_audio(audio_clip)
 
 
 def _detect_face_center_x(video_path: str, num_frames: int = 8) -> float | None:
@@ -200,9 +218,9 @@ def crop_to_vertical(raw_clip_path: str, output_dir: str, clip_index: int) -> tu
 
     try:
         # Apply crop using MoviePy
-        vertical_clip = clip.crop(x1=crop_x1, x2=crop_x2)
+        vertical_clip = _crop_clip(clip, x1=crop_x1, x2=crop_x2)
         if clip.audio is not None:
-            vertical_clip = vertical_clip.set_audio(clip.audio)
+            vertical_clip = _set_audio(vertical_clip, clip.audio)
 
         vertical_clip.write_videofile(
             output_path,

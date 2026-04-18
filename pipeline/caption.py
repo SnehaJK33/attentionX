@@ -5,7 +5,11 @@ Uses MoviePy TextClip to overlay transcript segments with white text and black s
 
 import os
 import subprocess
-from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
+
+try:
+    from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
+except ModuleNotFoundError:
+    from moviepy import VideoFileClip, TextClip, CompositeVideoClip
 
 
 def _get_ffprobe_bin() -> str:
@@ -81,6 +85,47 @@ def _remux_audio_from_source(video_path: str, audio_source_path: str) -> bool:
                 pass
 
 
+def _make_text_clip(text: str, clip_width: int):
+    """Create TextClip with MoviePy v1/v2-compatible kwargs."""
+    common_kwargs = {
+        "font": "Arial-Bold",
+        "color": "white",
+        "stroke_color": "black",
+        "stroke_width": 3,
+        "method": "caption",
+        "size": (int(clip_width * 0.9), None),
+        "align": "center",
+    }
+    try:
+        return TextClip(text, fontsize=40, **common_kwargs)
+    except TypeError:
+        return TextClip(text=text, font_size=40, **common_kwargs)
+
+
+def _set_caption_timing_and_position(txt_clip, local_start: float, local_end: float, caption_y: int):
+    """Apply timing/position with MoviePy v1/v2-compatible methods."""
+    if hasattr(txt_clip, "set_start"):
+        return (
+            txt_clip
+            .set_start(local_start)
+            .set_end(local_end)
+            .set_position(("center", caption_y))
+        )
+    return (
+        txt_clip
+        .with_start(local_start)
+        .with_end(local_end)
+        .with_position(("center", caption_y))
+    )
+
+
+def _set_audio(clip, audio_clip):
+    """MoviePy v1/v2 compatible audio attach helper."""
+    if hasattr(clip, "set_audio"):
+        return clip.set_audio(audio_clip)
+    return clip.with_audio(audio_clip)
+
+
 def burn_captions(
     vertical_clip_path: str,
     transcript_segments: list,
@@ -148,21 +193,9 @@ def burn_captions(
 
         try:
             # Create a TextClip for each caption segment
-            txt_clip = (
-                TextClip(
-                    text,
-                    fontsize=40,
-                    font="Arial-Bold",
-                    color="white",
-                    stroke_color="black",
-                    stroke_width=3,
-                    method="caption",
-                    size=(int(clip_width * 0.9), None),  # 90% of clip width
-                    align="center"
-                )
-                .set_start(local_start)
-                .set_end(local_end)
-                .set_position(("center", caption_y))
+            txt_clip = _make_text_clip(text, clip_width)
+            txt_clip = _set_caption_timing_and_position(
+                txt_clip, local_start, local_end, caption_y
             )
             text_clips.append(txt_clip)
 
@@ -176,7 +209,7 @@ def burn_captions(
             final_clip = CompositeVideoClip([clip] + text_clips)
             if clip.audio is not None:
                 # Explicitly preserve base audio when adding text overlays.
-                final_clip = final_clip.set_audio(clip.audio)
+                final_clip = _set_audio(final_clip, clip.audio)
         else:
             # No captions found — output the clip as-is
             final_clip = clip
