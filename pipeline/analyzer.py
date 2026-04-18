@@ -10,7 +10,7 @@ import time
 import google.generativeai as genai
 
 
-VIRAL_ANALYSIS_PROMPT = """You are a viral content strategist who has studied 10,000+ viral short-form videos. Analyze this transcript and find 3-5 moments perfect for Instagram Reels.
+VIRAL_ANALYSIS_PROMPT = """You are a viral content strategist who has studied 10,000+ viral short-form videos. Analyze this transcript and find {min_clips}-{max_clips} moments perfect for Instagram Reels.
 
 Find moments that are:
 - Counterintuitive or surprising
@@ -54,6 +54,31 @@ Total Duration: {duration} seconds"""
 def configure_gemini(api_key: str):
     """Configure the Gemini API client."""
     genai.configure(api_key=api_key)
+
+
+def _compute_target_clip_count(duration: float) -> int:
+    """
+    Scale clip count with video duration.
+    10+ minute videos should produce more clips than short videos.
+    """
+    override = os.getenv("ATTENTIONX_TARGET_CLIPS", "").strip()
+    if override:
+        try:
+            return max(3, min(14, int(override)))
+        except ValueError:
+            pass
+
+    duration = max(0.0, float(duration or 0.0))
+
+    if duration < 5 * 60:
+        return 5
+    if duration < 10 * 60:
+        return 6
+    if duration < 20 * 60:
+        return 8
+    if duration < 35 * 60:
+        return 10
+    return 12
 
 
 def _truncate_transcript(transcript: str, max_chars: int = 5000) -> str:
@@ -146,17 +171,30 @@ def _extract_segments_from_timestamped_text(timestamped_transcript: str) -> list
     return segments
 
 
-def _build_local_fallback_analysis(timestamped_transcript: str, duration: float) -> dict:
+def _build_local_fallback_analysis(
+    timestamped_transcript: str,
+    duration: float,
+    target_clip_count: int = 5,
+) -> dict:
     """
     Build deterministic clips when Gemini quota is exceeded.
     Uses timestamped segments and picks long/high-signal phrases.
     """
     segments = _extract_segments_from_timestamped_text(timestamped_transcript)
 
+    target_clip_count = max(3, min(14, int(target_clip_count or 5)))
+
     if not segments:
         # Hard fallback when transcript format is unknown.
-        clip_len = max(12.0, min(30.0, duration / 6.0 if duration > 0 else 20.0))
-        starts = [0.0, max(0.0, duration * 0.35), max(0.0, duration * 0.7)]
+        clip_len = max(12.0, min(30.0, duration / max(4.0, target_clip_count)))
+        if duration > 0 and target_clip_count > 1:
+            span = max(0.0, duration - clip_len)
+            starts = [
+                round((span * i) / (target_clip_count - 1), 2)
+                for i in range(target_clip_count)
+            ]
+        else:
+            starts = [0.0]
         clips = []
         for i, start in enumerate(starts):
             end = min(duration if duration > 0 else start + clip_len, start + clip_len)
@@ -182,16 +220,26 @@ def _build_local_fallback_analysis(timestamped_transcript: str, duration: float)
     )
 
     chosen = []
+    min_separation = max(8.0, min(18.0, duration / max(8.0, target_clip_count * 1.2)))
     for seg in ranked:
         # Keep selected clips separated to reduce overlap.
-        if any(abs(seg["start"] - prev["start"]) < 10 for prev in chosen):
+        if any(abs(seg["start"] - prev["start"]) < min_separation for prev in chosen):
             continue
         chosen.append(seg)
-        if len(chosen) >= 4:
+        if len(chosen) >= target_clip_count:
             break
 
     if not chosen:
-        chosen = segments[:3]
+        chosen = segments[:target_clip_count]
+
+    # Top-up if we still have fewer than target clips after separation filtering.
+    if len(chosen) < target_clip_count:
+        for seg in ranked:
+            if seg in chosen:
+                continue
+            chosen.append(seg)
+            if len(chosen) >= target_clip_count:
+                break
 
     clips = []
     for i, seg in enumerate(chosen, start=1):
@@ -222,6 +270,8 @@ def _build_local_fallback_analysis(timestamped_transcript: str, duration: float)
 def analyze_transcript(timestamped_transcript: str, duration: float, api_key: str) -> dict:
     """Use Gemini to detect viral-worthy moments in the transcript."""
     configure_gemini(api_key)
+    target_clip_count = _compute_target_clip_count(duration)
+    min_clips = max(4, target_clip_count - 2)
 
     primary_model = (os.getenv("GEMINI_MODEL") or "gemini-2.0-flash-lite").strip()
     fallback_models_env = os.getenv("GEMINI_FALLBACK_MODELS", "gemini-1.5-flash,gemini-1.5-flash-8b")
@@ -235,7 +285,9 @@ def analyze_transcript(timestamped_transcript: str, duration: float, api_key: st
 
     prompt = VIRAL_ANALYSIS_PROMPT.format(
         full_transcript_with_timestamps=short_transcript,
-        duration=duration
+        duration=duration,
+        min_clips=min_clips,
+        max_clips=target_clip_count,
     )
 
     fallback_prompt = STRICT_FALLBACK_PROMPT.format(
@@ -264,18 +316,30 @@ def analyze_transcript(timestamped_transcript: str, duration: float, api_key: st
                 continue
 
     if last_error and (_is_quota_or_rate_error(last_error) or _is_temporary_api_error(last_error)):
-        result = _build_local_fallback_analysis(short_transcript, duration)
+        result = _build_local_fallback_analysis(
+            short_transcript,
+            duration,
+            target_clip_count=target_clip_count,
+        )
         _validate_clips(result)
         return result
 
     # Safety net: never block the pipeline if Gemini returns unusable output.
     if last_error is None:
-        result = _build_local_fallback_analysis(short_transcript, duration)
+        result = _build_local_fallback_analysis(
+            short_transcript,
+            duration,
+            target_clip_count=target_clip_count,
+        )
         _validate_clips(result)
         return result
 
     # Final fallback for all other Gemini errors (auth/model mismatch/etc.).
-    result = _build_local_fallback_analysis(short_transcript, duration)
+    result = _build_local_fallback_analysis(
+        short_transcript,
+        duration,
+        target_clip_count=target_clip_count,
+    )
     result["analysis_error"] = str(last_error)[:250]
     _validate_clips(result)
     return result

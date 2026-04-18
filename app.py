@@ -157,6 +157,29 @@ def _get_secret_value(key: str) -> str:
     return str(from_secrets).strip()
 
 
+def _target_clip_count_for_duration(duration_sec: float) -> int:
+    """
+    Scale output clip count with video length.
+    """
+    override = _get_secret_value("ATTENTIONX_TARGET_CLIPS")
+    if override:
+        try:
+            return max(3, min(14, int(override)))
+        except ValueError:
+            pass
+
+    duration_sec = max(0.0, float(duration_sec or 0.0))
+    if duration_sec < 5 * 60:
+        return 5
+    if duration_sec < 10 * 60:
+        return 6
+    if duration_sec < 20 * 60:
+        return 8
+    if duration_sec < 35 * 60:
+        return 10
+    return 12
+
+
 def build_content_zip(clips_data: list) -> bytes:
     zip_buffer = io.BytesIO()
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -566,11 +589,12 @@ if uploaded_file is not None:
                     gemini_api_key,
                 )
                 clips_meta = analysis["clips"]
+                target_clips = _target_clip_count_for_duration(transcription["duration"])
                 clips_meta = refine_clips_with_emotional_peaks(
                     temp_video_path,
                     clips_meta,
                     transcription["segments"],
-                    max_clips=5,
+                    max_clips=target_clips,
                 )
                 st.write(f"  OK Detected {len(clips_meta)} viral moments")
                 st.write("  OK Refined clips using audio spikes + sentiment intensity")
