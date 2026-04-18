@@ -13,13 +13,66 @@ import zipfile
 import streamlit as st
 from dotenv import load_dotenv
 
+
+def _prepend_path(path_dir: str) -> None:
+    """Prepend a directory to PATH once."""
+    if not path_dir:
+        return
+    current = os.environ.get("PATH", "")
+    parts = current.split(os.pathsep) if current else []
+    if path_dir in parts:
+        return
+    os.environ["PATH"] = path_dir + os.pathsep + current
+
+
+def _activate_ffmpeg_bin(ffmpeg_bin: str) -> None:
+    """
+    Register ffmpeg binary and ensure `ffmpeg` command is callable by Whisper.
+    """
+    if not ffmpeg_bin or not os.path.exists(ffmpeg_bin):
+        return
+
+    os.environ["IMAGEIO_FFMPEG_EXE"] = ffmpeg_bin
+    os.environ["FFMPEG_BINARY"] = ffmpeg_bin
+
+    ffmpeg_dir = os.path.dirname(ffmpeg_bin)
+    _prepend_path(ffmpeg_dir)
+
+    ffmpeg_name = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
+    if os.path.basename(ffmpeg_bin).lower() == ffmpeg_name.lower():
+        return
+
+    alias_dir = os.path.join(tempfile.gettempdir(), "attentionx_ffmpeg_bin")
+    os.makedirs(alias_dir, exist_ok=True)
+    alias_path = os.path.join(alias_dir, ffmpeg_name)
+
+    if os.name == "nt":
+        if not os.path.exists(alias_path):
+            shutil.copy2(ffmpeg_bin, alias_path)
+    else:
+        script = f'#!/usr/bin/env sh\n"{ffmpeg_bin}" "$@"\n'
+        existing = ""
+        if os.path.exists(alias_path):
+            try:
+                with open(alias_path, "r", encoding="utf-8") as f:
+                    existing = f.read()
+            except Exception:
+                existing = ""
+        if existing != script:
+            with open(alias_path, "w", encoding="utf-8") as f:
+                f.write(script)
+            os.chmod(alias_path, 0o755)
+
+    _prepend_path(alias_dir)
+
+
 def _configure_ffmpeg() -> None:
     """
     Configure ffmpeg for local Windows runs and cloud deployments.
     """
-    if os.environ.get("IMAGEIO_FFMPEG_EXE") and os.path.exists(
-        os.environ["IMAGEIO_FFMPEG_EXE"]
-    ):
+    configured_bin = os.environ.get("IMAGEIO_FFMPEG_EXE", "")
+    if configured_bin and os.path.exists(configured_bin):
+        _activate_ffmpeg_bin(configured_bin)
         return
 
     app_dir = os.path.dirname(os.path.abspath(__file__))
@@ -40,13 +93,12 @@ def _configure_ffmpeg() -> None:
     for ffmpeg_dir in candidate_dirs:
         ffmpeg_bin = os.path.join(ffmpeg_dir, ffmpeg_bin_name)
         if os.path.exists(ffmpeg_bin):
-            os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
-            os.environ["IMAGEIO_FFMPEG_EXE"] = ffmpeg_bin
+            _activate_ffmpeg_bin(ffmpeg_bin)
             return
 
     ffmpeg_from_path = shutil.which("ffmpeg")
     if ffmpeg_from_path:
-        os.environ.setdefault("IMAGEIO_FFMPEG_EXE", ffmpeg_from_path)
+        _activate_ffmpeg_bin(ffmpeg_from_path)
         return
 
     # Final fallback for environments like Streamlit Cloud where
@@ -56,14 +108,12 @@ def _configure_ffmpeg() -> None:
 
         bundled_ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
         if bundled_ffmpeg and os.path.exists(bundled_ffmpeg):
-            os.environ.setdefault("IMAGEIO_FFMPEG_EXE", bundled_ffmpeg)
+            _activate_ffmpeg_bin(bundled_ffmpeg)
     except Exception:
         pass
 
-
-_configure_ffmpeg()
-
 load_dotenv()
+_configure_ffmpeg()
 
 from pipeline.analyzer import analyze_transcript
 from pipeline.audio_viz import generate_energy_graph
