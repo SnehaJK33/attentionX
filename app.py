@@ -47,6 +47,18 @@ def _configure_ffmpeg() -> None:
     ffmpeg_from_path = shutil.which("ffmpeg")
     if ffmpeg_from_path:
         os.environ.setdefault("IMAGEIO_FFMPEG_EXE", ffmpeg_from_path)
+        return
+
+    # Final fallback for environments like Streamlit Cloud where
+    # imageio-ffmpeg provides a bundled ffmpeg binary.
+    try:
+        import imageio_ffmpeg
+
+        bundled_ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+        if bundled_ffmpeg and os.path.exists(bundled_ffmpeg):
+            os.environ.setdefault("IMAGEIO_FFMPEG_EXE", bundled_ffmpeg)
+    except Exception:
+        pass
 
 
 _configure_ffmpeg()
