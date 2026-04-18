@@ -2,8 +2,8 @@
 
 > Turn hours of long-form video into viral short clips in one click using AI
 
-## 🔗 Live Demo: [PASTE STREAMLIT URL HERE]
-## 🎥 Demo Video: [PASTE GOOGLE DRIVE LINK HERE]
+## 🔗 Live Demo: [https://attentionx-lqrwvxdfqr7v4iuef5rohg.streamlit.app/]
+## 🎥 Demo Video: [https://drive.google.com/file/d/1yQLLmF2Ph_CxQZMnV4H6MvbDZTVa_5Gd/view?usp=sharing]
 
 ---
 
