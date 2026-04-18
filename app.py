@@ -130,6 +130,21 @@ def _has_audio_stream(video_path: str) -> bool:
     return bool(result.stdout.strip())
 
 
+def _get_secret_value(key: str) -> str:
+    """
+    Read a config value from environment first, then Streamlit secrets.
+    """
+    from_env = (os.getenv(key) or "").strip()
+    if from_env:
+        return from_env
+
+    try:
+        from_secrets = st.secrets.get(key, "")
+    except Exception:
+        from_secrets = ""
+    return str(from_secrets).strip()
+
+
 def build_content_zip(clips_data: list) -> bytes:
     zip_buffer = io.BytesIO()
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -372,11 +387,11 @@ with st.sidebar:
     st.markdown("4. Download your content pack")
     st.markdown("---")
 
-    gemini_api_key = (os.getenv("GEMINI_API_KEY") or "").strip()
+    gemini_api_key = _get_secret_value("GEMINI_API_KEY")
     if gemini_api_key:
-        st.success("Gemini API key loaded from .env")
+        st.success("Gemini API key loaded")
     else:
-        st.warning("Missing GEMINI_API_KEY in .env")
+        st.warning("Missing GEMINI_API_KEY in .env or Streamlit secrets")
 
 st.markdown(
     """
@@ -619,6 +634,7 @@ if uploaded_file is not None:
 
         except Exception as e:
             st.error(f"Unexpected error: {e}")
+            st.exception(e)
 
         finally:
             if temp_video_path and os.path.exists(temp_video_path):
