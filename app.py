@@ -180,6 +180,17 @@ def _target_clip_count_for_duration(duration_sec: float) -> int:
     return 12
 
 
+def _audio_diagnostics_enabled() -> bool:
+    """
+    Audio probes are useful for debugging but add processing overhead.
+    """
+    return _get_secret_value("ATTENTIONX_AUDIO_DIAGNOSTICS").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
 def build_content_zip(clips_data: list) -> bytes:
     zip_buffer = io.BytesIO()
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -602,10 +613,11 @@ if uploaded_file is not None:
                 st.write("Cutting clips from video...")
                 enriched_clips = extract_clips(temp_video_path, clips_meta, output_dir)
                 st.write(f"  OK Extracted {len(enriched_clips)} clips")
-                raw_with_audio = sum(
-                    1 for clip in enriched_clips if _has_audio_stream(clip.get("raw_path", ""))
-                )
-                st.write(f"  Audio check (raw): {raw_with_audio}/{len(enriched_clips)}")
+                if _audio_diagnostics_enabled():
+                    raw_with_audio = sum(
+                        1 for clip in enriched_clips if _has_audio_stream(clip.get("raw_path", ""))
+                    )
+                    st.write(f"  Audio check (raw): {raw_with_audio}/{len(enriched_clips)}")
 
                 st.write("Smart-cropping to vertical (9:16)...")
                 for clip in enriched_clips:
@@ -617,12 +629,13 @@ if uploaded_file is not None:
                     clip["vertical_path"] = vertical_path
                     clip["face_detected"] = face_detected
                 st.write("  OK Cropped all clips")
-                vertical_with_audio = sum(
-                    1
-                    for clip in enriched_clips
-                    if _has_audio_stream(clip.get("vertical_path", ""))
-                )
-                st.write(f"  Audio check (vertical): {vertical_with_audio}/{len(enriched_clips)}")
+                if _audio_diagnostics_enabled():
+                    vertical_with_audio = sum(
+                        1
+                        for clip in enriched_clips
+                        if _has_audio_stream(clip.get("vertical_path", ""))
+                    )
+                    st.write(f"  Audio check (vertical): {vertical_with_audio}/{len(enriched_clips)}")
 
                 st.write("Burning captions...")
                 for clip in enriched_clips:
@@ -636,10 +649,11 @@ if uploaded_file is not None:
                     )
                     clip["final_path"] = final_path
                 st.write("  OK Captions burned")
-                final_with_audio = sum(
-                    1 for clip in enriched_clips if _has_audio_stream(clip.get("final_path", ""))
-                )
-                st.write(f"  Audio check (final): {final_with_audio}/{len(enriched_clips)}")
+                if _audio_diagnostics_enabled():
+                    final_with_audio = sum(
+                        1 for clip in enriched_clips if _has_audio_stream(clip.get("final_path", ""))
+                    )
+                    st.write(f"  Audio check (final): {final_with_audio}/{len(enriched_clips)}")
 
                 st.write("Generating energy graph...")
                 energy_fig = generate_energy_graph(temp_video_path, enriched_clips)

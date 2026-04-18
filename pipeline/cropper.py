@@ -105,12 +105,12 @@ def _set_audio(clip, audio_clip):
     return clip.with_audio(audio_clip)
 
 
-def _detect_face_center_x(video_path: str, num_frames: int = 8) -> float | None:
+def _detect_face_center_x(clip, num_frames: int = 5) -> float | None:
     """
     Sample frames from a video to find the average horizontal face center.
 
     Args:
-        video_path: Path to the video clip.
+        clip: Opened MoviePy clip.
         num_frames: Number of frames to sample for face detection.
 
     Returns:
@@ -128,7 +128,6 @@ def _detect_face_center_x(video_path: str, num_frames: int = 8) -> float | None:
     except Exception:
         return None
 
-    clip = VideoFileClip(video_path)
     duration = clip.duration
     x_positions = []
 
@@ -151,7 +150,6 @@ def _detect_face_center_x(video_path: str, num_frames: int = 8) -> float | None:
                 continue  # Skip bad frames silently
 
     finally:
-        clip.close()
         try:
             face_detector.close()
         except Exception:
@@ -178,11 +176,16 @@ def crop_to_vertical(raw_clip_path: str, output_dir: str, clip_index: int) -> tu
         RuntimeError: If MoviePy fails to write the cropped clip.
     """
     os.makedirs(output_dir, exist_ok=True)
-    encode_preset = os.getenv("ATTENTIONX_ENCODE_PRESET", "veryfast")
+    encode_preset = os.getenv("ATTENTIONX_ENCODE_PRESET", "superfast")
     try:
         encode_threads = int(os.getenv("ATTENTIONX_ENCODE_THREADS", str(os.cpu_count() or 2)))
     except ValueError:
         encode_threads = os.cpu_count() or 2
+    try:
+        face_samples = int(os.getenv("ATTENTIONX_FACE_SAMPLES", "5"))
+    except ValueError:
+        face_samples = 5
+    face_samples = max(2, min(12, face_samples))
 
     output_path = os.path.join(output_dir, f"clip_{clip_index}_vertical.mp4")
 
@@ -200,7 +203,7 @@ def crop_to_vertical(raw_clip_path: str, output_dir: str, clip_index: int) -> tu
     face_used = False
     crop_x1 = None
 
-    normalized_x = _detect_face_center_x(raw_clip_path)
+    normalized_x = _detect_face_center_x(clip, num_frames=face_samples)
 
     if normalized_x is not None:
         # Convert normalized position to pixel position

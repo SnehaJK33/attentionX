@@ -155,7 +155,7 @@ def burn_captions(
         RuntimeError: If MoviePy fails to write the captioned clip.
     """
     os.makedirs(output_dir, exist_ok=True)
-    encode_preset = os.getenv("ATTENTIONX_ENCODE_PRESET", "veryfast")
+    encode_preset = os.getenv("ATTENTIONX_ENCODE_PRESET", "superfast")
     try:
         encode_threads = int(os.getenv("ATTENTIONX_ENCODE_THREADS", str(os.cpu_count() or 2)))
     except ValueError:

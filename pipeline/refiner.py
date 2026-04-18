@@ -36,11 +36,11 @@ def _build_energy_profile(video_path: str):
     Return (times_sec, normalized_energy_0_to_100) or (None, None) on failure.
     """
     try:
-        y, sr = librosa.load(video_path, sr=22050, mono=True)
+        y, sr = librosa.load(video_path, sr=16000, mono=True)
     except Exception:
         return None, None
 
-    hop_length = 512
+    hop_length = 1024
     rms = librosa.feature.rms(y=y, hop_length=hop_length)[0]
     times = librosa.times_like(rms, sr=sr, hop_length=hop_length)
 

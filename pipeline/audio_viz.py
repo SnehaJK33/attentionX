@@ -26,7 +26,7 @@ def generate_energy_graph(video_path: str, clips_data: list) -> Figure:
     """
     # Load audio from video (librosa handles video audio extraction via ffmpeg)
     try:
-        y, sr = librosa.load(video_path, sr=22050, mono=True)
+        y, sr = librosa.load(video_path, sr=16000, mono=True)
     except Exception as e:
         # Return a minimal placeholder figure if audio load fails
         fig, ax = plt.subplots(figsize=(14, 4))
@@ -40,8 +40,8 @@ def generate_energy_graph(video_path: str, clips_data: list) -> Figure:
         fig.patch.set_facecolor("#0d1117")
         return fig
 
-    # Compute RMS energy with a hop length of 512 samples
-    hop_length = 512
+    # Compute RMS energy with a larger hop length for faster processing
+    hop_length = 1024
     rms = librosa.feature.rms(y=y, hop_length=hop_length)[0]
 
     # Time axis in seconds

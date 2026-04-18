@@ -1,6 +1,6 @@
 """
 transcriber.py — Whisper-based audio transcription with word-level timestamps.
-Loads the Whisper 'base' model and returns structured segment data.
+Loads a Whisper model (defaults to 'tiny' for speed) and returns structured segment data.
 """
 
 import os
@@ -32,7 +32,7 @@ def transcribe_video(video_path: str) -> dict:
         ValueError: If no speech is detected in the video.
         RuntimeError: If transcription fails after one retry.
     """
-    model_name = os.getenv("WHISPER_MODEL", "base").strip() or "base"
+    model_name = os.getenv("WHISPER_MODEL", "tiny").strip() or "tiny"
     model = load_whisper_model(model_name)
     use_fp16 = torch.cuda.is_available()
     language = (os.getenv("WHISPER_LANGUAGE") or "").strip() or None

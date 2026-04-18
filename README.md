@@ -39,7 +39,7 @@ AttentionX uses GenAI and Multimodal models to automatically detect the most pow
 | Component | Technology |
 |-----------|-----------|
 | Frontend | Streamlit |
-| Transcription | OpenAI Whisper (base model) |
+| Transcription | OpenAI Whisper (configurable, tiny default) |
 | AI Analysis | Google Gemini (configurable model) |
 | Face Tracking | MediaPipe Face Detection |
 | Video Processing | MoviePy |
@@ -95,11 +95,14 @@ Create a `.env` file in the project root:
 GEMINI_API_KEY=your_key_here
 GEMINI_MODEL=gemini-2.0-flash-lite
 GEMINI_FALLBACK_MODELS=gemini-1.5-flash,gemini-1.5-flash-8b
-WHISPER_MODEL=base
+WHISPER_MODEL=tiny
 WHISPER_LANGUAGE=
-ATTENTIONX_ENCODE_PRESET=veryfast
+ATTENTIONX_ENCODE_PRESET=superfast
 ATTENTIONX_ENCODE_THREADS=8
-ATTENTIONX_USE_FAST_CUT=0
+ATTENTIONX_USE_FAST_CUT=1
+ATTENTIONX_FACE_SAMPLES=5
+ATTENTIONX_AUDIO_DIAGNOSTICS=0
+ATTENTIONX_TARGET_CLIPS=
 ```
 
 

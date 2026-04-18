@@ -129,8 +129,8 @@ def extract_clips(video_path: str, clips_data: list, output_dir: str) -> list:
         RuntimeError: If MoviePy fails to write a clip.
     """
     os.makedirs(output_dir, exist_ok=True)
-    use_fast_cut = os.getenv("ATTENTIONX_USE_FAST_CUT", "0").strip().lower() in {"1", "true", "yes"}
-    encode_preset = os.getenv("ATTENTIONX_ENCODE_PRESET", "veryfast")
+    use_fast_cut = os.getenv("ATTENTIONX_USE_FAST_CUT", "1").strip().lower() in {"1", "true", "yes"}
+    encode_preset = os.getenv("ATTENTIONX_ENCODE_PRESET", "superfast")
     try:
         encode_threads = int(os.getenv("ATTENTIONX_ENCODE_THREADS", str(os.cpu_count() or 2)))
     except ValueError:
