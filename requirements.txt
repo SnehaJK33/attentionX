@@ -1,0 +1,11 @@
+streamlit>=1.32.0
+moviepy>=1.0.3
+openai-whisper>=20231117
+google-generativeai>=0.4.0
+mediapipe>=0.10.9
+librosa>=0.10.1
+numpy>=1.24.0
+python-dotenv>=1.0.0
+pillow>=10.0.0
+imageio-ffmpeg>=0.4.9
+matplotlib>=3.7.0

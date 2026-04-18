@@ -1,0 +1,10 @@
+.env
+output/
+__pycache__/
+*.pyc
+.DS_Store
+*.mp4
+*.mov
+*.avi
+tmp/
+*.mkv
